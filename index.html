@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scan Station - Modish Books</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --surface:#ffffff; --surface-2:#eceef1; --border:#dde0e5;
+    --text:#171a1f; --muted:#666e79;
+    --in:#1f7a3d; --in-bg:#e7f6ec; --in-border:#bfe4cb;
+    --out:#2354a6; --out-bg:#e9f0fb; --out-border:#c3d6f4;
+    --warn:#9a5b00; --warn-bg:#fff2df; --warn-border:#f2d8a4;
+    --danger:#a3231f; --danger-bg:#fbe8e7;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12141a; --surface:#1b1f27; --surface-2:#232833; --border:#323847;
+      --text:#eceef2; --muted:#98a1af;
+      --in:#5fd489; --in-bg:#173224; --in-border:#2b5a3d;
+      --out:#7fa8ef; --out-bg:#152641; --out-border:#2b466f;
+      --warn:#f0b64f; --warn-bg:#3a2c0f; --warn-border:#6b511f;
+      --danger:#f2827c; --danger-bg:#3a1c1b;
+      color-scheme:dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#12141a; --surface:#1b1f27; --surface-2:#232833; --border:#323847;
+    --text:#eceef2; --muted:#98a1af;
+    --in:#5fd489; --in-bg:#173224; --in-border:#2b5a3d;
+    --out:#7fa8ef; --out-bg:#152641; --out-border:#2b466f;
+    --warn:#f0b64f; --warn-bg:#3a2c0f; --warn-border:#6b511f;
+    --danger:#f2827c; --danger-bg:#3a1c1b;
+    color-scheme:dark;
+  }
+
+  [hidden]{display:none !important;}
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:"IBM Plex Sans",-apple-system,Segoe UI,sans-serif;
+    padding-inline:16px; padding-block:14px 28px;
+  }
+  h1,h2{font-family:"Sora","IBM Plex Sans",sans-serif; margin:0;}
+  .mono{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums;}
+  .wrap{max-width:480px; margin:0 auto;}
+
+  .topbar{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
+  .topbar h1{font-size:19px; font-weight:600;}
+  .gear{background:none; border:1px solid var(--border); color:var(--muted); border-radius:9px; width:36px; height:36px; font-size:16px; cursor:pointer;}
+
+  .tabs{display:flex; gap:8px; margin-bottom:14px;}
+  .tab{flex:1; padding:12px; text-align:center; border-radius:12px; border:1.5px solid var(--border);
+       background:var(--surface); font-weight:600; font-size:15px; color:var(--muted); cursor:pointer;}
+  .tab.active.in{border-color:var(--in); color:var(--in); background:var(--in-bg);}
+  .tab.active.out{border-color:var(--out); color:var(--out); background:var(--out-bg);}
+
+  .card{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:12px;}
+  label{display:block; font-size:12.5px; color:var(--muted); margin:10px 0 5px; font-weight:600; letter-spacing:.2px;}
+  label:first-child{margin-top:0;}
+  input[type=text],input[type=number],input[type=password],select{
+    width:100%; padding:11px 12px; font-size:15.5px; border:1.5px solid var(--border);
+    border-radius:9px; background:var(--surface); color:var(--text); font-family:inherit;
+  }
+  input:focus{outline:2px solid var(--out); outline-offset:1px;}
+
+  .qtyrow{display:flex; align-items:center; gap:8px;}
+  .qtyrow button{font-size:18px; width:40px; height:40px; border-radius:9px; border:1.5px solid var(--border); background:var(--surface-2); color:var(--text);}
+  .qtyrow input{text-align:center; flex:1;}
+
+  .modebar{display:flex; gap:8px; margin:14px 0 4px;}
+  .modebtn{flex:1; padding:10px; border-radius:9px; border:1.5px solid var(--border); background:var(--surface-2);
+           font-size:13.5px; font-weight:600; color:var(--muted);}
+  .modebtn.on{background:var(--text); color:var(--surface); border-color:var(--text);}
+
+  #reader{width:100%; border-radius:12px; overflow:hidden; margin-top:8px; background:#000; min-height:180px;}
+  .hint{font-size:12px; color:var(--muted); margin-top:6px;}
+
+  .status{min-height:52px; border-radius:11px; padding:12px; margin-top:10px; font-size:14.5px; line-height:1.4;}
+  .status.idle{background:var(--surface-2); color:var(--muted);}
+  .status.ok{background:var(--in-bg); color:var(--in); border:1px solid var(--in-border);}
+  .status.warn{background:var(--warn-bg); color:var(--warn); border:1px solid var(--warn-border);}
+  .status.err{background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger);}
+
+  .logtitle{font-weight:600; font-size:14px; margin-bottom:8px;}
+  .log{max-height:220px; overflow-y:auto; font-size:13.5px;}
+  .logrow{display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid var(--border);}
+  .logrow:last-child{border-bottom:none;}
+  .logrow .pill{font-size:11px; font-weight:700; padding:2px 7px; border-radius:99px; white-space:nowrap;}
+  .pill.in{background:var(--in-bg); color:var(--in);}
+  .pill.out{background:var(--out-bg); color:var(--out);}
+  .logrow .title{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .empty{color:var(--muted); font-size:13.5px; padding:4px 0;}
+
+  .overlay{position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:flex-end; justify-content:center; z-index:10;}
+  .sheet{background:var(--surface); width:100%; max-width:480px; border-radius:18px 18px 0 0; padding:20px 18px calc(20px + env(safe-area-inset-bottom,0px));}
+  .sheet h2{font-size:17px; margin-bottom:4px;}
+  .sheet p{font-size:13px; color:var(--muted); margin:0 0 14px;}
+  .btnrow{display:flex; gap:10px; margin-top:16px;}
+  .btn{flex:1; padding:12px; border-radius:10px; border:none; font-weight:600; font-size:14.5px; cursor:pointer;}
+  .btn.primary{background:var(--text); color:var(--surface);}
+  .btn.ghost{background:var(--surface-2); color:var(--text); border:1px solid var(--border);}
+</style>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+<!-- PWA: makes this installable as a home-screen app -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1f3864">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Scan Station - Modish Books">
+
+
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <h1>Scan Station - Modish Books</h1>
+    <button class="gear" id="gearBtn" title="Settings">⚙</button>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active in" id="tabIn">📥 Inward</div>
+    <div class="tab out" id="tabOut">📤 Outward</div>
+  </div>
+
+  <div class="card" id="inFields">
+    <label>Source / Supplier</label>
+    <input type="text" id="source" placeholder="e.g. Ingram, local distributor">
+    <label>Invoice No.</label>
+    <input type="text" id="invoice" placeholder="Invoice / bill number">
+  </div>
+
+  <div class="card">
+    <div class="modebar">
+      <div class="modebtn on" id="btnCamera">📷 Camera</div>
+      <div class="modebtn" id="btnManual">⌨️ Manual</div>
+    </div>
+
+    <div id="cameraArea">
+      <div id="reader"></div>
+      <div class="hint">Hold the book's barcode steady in front of the camera.</div>
+    </div>
+    <div id="manualArea" style="display:none">
+      <label style="margin-top:14px">ISBN</label>
+      <input type="text" id="scanBox" placeholder="Type ISBN, then press Enter">
+    </div>
+
+    <div class="status idle mono" id="status">Set up the Sheet connection first (⚙ above).</div>
+
+    <div class="card" id="confirmCard" hidden style="margin-top:10px; border-color:var(--out-border);">
+      <div style="font-weight:600; margin-bottom:10px;">Confirm scan</div>
+      <label>ISBN</label>
+      <input type="text" id="confIsbn" class="mono" readonly style="opacity:.7">
+      <label id="confTitleLabel">Title</label>
+      <input type="text" id="confTitle" placeholder="Book title">
+      <div id="confNewProductWrap" style="display:none">
+        <label>Publisher</label>
+        <input type="text" id="confPublisher" placeholder="Publisher name">
+        <label>Binding</label>
+        <select id="confBinding">
+          <option value="Paperback">Paperback</option>
+          <option value="Hardcover">Hardcover</option>
+        </select>
+        <label>Min Stock (low-stock alert)</label>
+        <input type="number" id="confMinStock" value="0" min="0">
+      </div>
+      <label>Box No.</label>
+      <input type="text" id="confBox" placeholder="e.g. B12">
+      <select id="confBoxSelect" hidden></select>
+      <div class="hint" id="confBoxHint" hidden>This ISBN is in more than one box. Pick the one you're taking from.</div>
+      <div id="confFulfillmentWrap" style="display:none">
+        <label>Fulfilled by</label>
+        <select id="confFulfillment">
+          <option value="FBA">FBA (Amazon warehouse)</option>
+          <option value="FBM">FBM (shipped by us)</option>
+          <option value="OTHER">OTHER (adjustment)</option>
+        </select>
+      </div>
+      <label>Qty</label>
+      <div class="qtyrow">
+        <button type="button" id="confQtyMinus">−</button>
+        <input type="number" id="confQty" value="1" min="1">
+        <button type="button" id="confQtyPlus">+</button>
+      </div>
+      <div id="confNote" style="font-size:12.5px; margin-top:10px; line-height:1.4;"></div>
+      <div class="btnrow">
+        <button class="btn ghost" id="confCancel">Cancel</button>
+        <button class="btn primary" id="confSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="logtitle">Recent scans (this session)</div>
+    <div class="log" id="log"><div class="empty">Nothing scanned yet.</div></div>
+  </div>
+</div>
+
+<div class="overlay" id="settingsOverlay" hidden>
+  <div class="sheet">
+    <h2>Connect to your Google Sheet</h2>
+    <p>From Apps Script: Deploy → Manage deployments → copy the Web app URL. Use the same API key you set in Code.gs.</p>
+    <label>Web app URL</label>
+    <input type="text" id="cfgUrl" placeholder="https://script.google.com/macros/s/.../exec">
+    <label>API key</label>
+    <input type="password" id="cfgKey" placeholder="the key from API_KEY in Code.gs">
+    <div class="btnrow">
+      <button class="btn ghost" id="cfgCancel">Cancel</button>
+      <button class="btn primary" id="cfgSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var mode = 'in';
+  var inputMode = 'camera';
+  var busy = false;
+  var lastCode = '', lastTime = 0;
+  var holdCode = '', holdStart = 0; // tracks how long the SAME code has been seen in front of the camera
+  var HOLD_MS = 1000; // must be held steady this long before it counts as a real scan
+  var html5QrCode = null;
+  var cfg = { url: '', key: '' };
+  var seenIn = {};   // ISBN -> times logged as inward this session
+  var seenOut = {};  // ISBN -> times logged as outward this session
+  var pendingScan = null; // {isbn, found, dir} waiting on the confirm card
+  var lastBoxIn = '', lastBoxOut = ''; // remembers the box typed last time, per direction, for quick repeat scans
+
+  var el = {
+    tabIn: document.getElementById('tabIn'),
+    tabOut: document.getElementById('tabOut'),
+    inFields: document.getElementById('inFields'),
+    btnCamera: document.getElementById('btnCamera'),
+    btnManual: document.getElementById('btnManual'),
+    cameraArea: document.getElementById('cameraArea'),
+    manualArea: document.getElementById('manualArea'),
+    scanBox: document.getElementById('scanBox'),
+    status: document.getElementById('status'),
+    log: document.getElementById('log'),
+    confirmCard: document.getElementById('confirmCard'),
+    confIsbn: document.getElementById('confIsbn'),
+    confTitle: document.getElementById('confTitle'),
+    confTitleLabel: document.getElementById('confTitleLabel'),
+    confNewProductWrap: document.getElementById('confNewProductWrap'),
+    confPublisher: document.getElementById('confPublisher'),
+    confBinding: document.getElementById('confBinding'),
+    confMinStock: document.getElementById('confMinStock'),
+    confBox: document.getElementById('confBox'),
+    confBoxSelect: document.getElementById('confBoxSelect'),
+    confBoxHint: document.getElementById('confBoxHint'),
+    confFulfillmentWrap: document.getElementById('confFulfillmentWrap'),
+    confFulfillment: document.getElementById('confFulfillment'),
+    confQty: document.getElementById('confQty'),
+    confQtyMinus: document.getElementById('confQtyMinus'),
+    confQtyPlus: document.getElementById('confQtyPlus'),
+    confNote: document.getElementById('confNote'),
+    confCancel: document.getElementById('confCancel'),
+    confSave: document.getElementById('confSave'),
+    gearBtn: document.getElementById('gearBtn'),
+    overlay: document.getElementById('settingsOverlay'),
+    cfgUrl: document.getElementById('cfgUrl'),
+    cfgKey: document.getElementById('cfgKey'),
+    cfgSave: document.getElementById('cfgSave'),
+    cfgCancel: document.getElementById('cfgCancel')
+  };
+
+  function loadCfg(){
+    try {
+      cfg.url = localStorage.getItem('scan_wa_url') || '';
+      cfg.key = localStorage.getItem('scan_wa_key') || '';
+    } catch(e){}
+  }
+  function saveCfg(){
+    try {
+      localStorage.setItem('scan_wa_url', cfg.url);
+      localStorage.setItem('scan_wa_key', cfg.key);
+    } catch(e){}
+  }
+
+  function openSettings(){
+    el.cfgUrl.value = cfg.url;
+    el.cfgKey.value = cfg.key;
+    el.overlay.hidden = false;
+  }
+  function closeSettings(){ el.overlay.hidden = true; }
+
+  el.gearBtn.addEventListener('click', openSettings);
+  el.cfgCancel.addEventListener('click', closeSettings);
+  el.cfgSave.addEventListener('click', function(){
+    cfg.url = el.cfgUrl.value.trim();
+    cfg.key = el.cfgKey.value.trim();
+    saveCfg();
+    closeSettings();
+    setStatus('idle', cfg.url ? 'Ready.' : 'Set up the Sheet connection first (⚙ above).');
+  });
+
+  // One shared AudioContext, unlocked on the first tap anywhere on the page.
+  // (A fresh AudioContext created outside a direct user gesture — e.g. from inside
+  // a fetch().then() after a camera scan — starts "suspended" on mobile Chrome and
+  // plays no sound at all, with no error. Reusing one unlocked context fixes that.)
+  var audioCtx = null;
+  function unlockAudio(){
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch(e){}
+  }
+  // No {once:true} — resume() is cheap and idempotent, and some browsers silently drop
+  // the very first resume() call, so trying again on every tap makes this much more reliable.
+  document.addEventListener('touchstart', unlockAudio, { passive: true });
+  document.addEventListener('click', unlockAudio);
+
+  function beep(freq, dur){
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start();
+      setTimeout(function(){ try { osc.stop(); } catch(e){} }, dur);
+    } catch(e){}
+  }
+
+  function setStatus(cls, html){
+    el.status.className = 'status ' + cls + (cls === 'idle' ? ' mono' : '');
+    el.status.innerHTML = html;
+  }
+
+  function addLog(dir, isbn, qty, title){
+    var empty = el.log.querySelector('.empty');
+    if (empty) empty.remove();
+    var row = document.createElement('div');
+    row.className = 'logrow';
+    row.innerHTML =
+      '<span class="pill ' + dir + '">' + (dir === 'in' ? 'IN' : 'OUT') + ' x' + qty + '</span>' +
+      '<span class="title">' + title + '</span>' +
+      '<span class="mono" style="color:var(--muted)">' + isbn.slice(-6) + '</span>';
+    el.log.insertBefore(row, el.log.firstChild);
+  }
+
+  function setTab(m){
+    mode = m;
+    el.tabIn.classList.toggle('active', m === 'in');
+    el.tabOut.classList.toggle('active', m === 'out');
+    el.inFields.style.display = m === 'in' ? 'block' : 'none';
+    if (inputMode === 'manual') el.scanBox.focus();
+  }
+  el.tabIn.addEventListener('click', function(){ setTab('in'); });
+  el.tabOut.addEventListener('click', function(){ setTab('out'); });
+
+  function useCamera(){
+    inputMode = 'camera';
+    el.btnCamera.classList.add('on'); el.btnManual.classList.remove('on');
+    el.cameraArea.style.display = 'block'; el.manualArea.style.display = 'none';
+    startCamera();
+  }
+  function useManual(){
+    inputMode = 'manual';
+    el.btnManual.classList.add('on'); el.btnCamera.classList.remove('on');
+    el.cameraArea.style.display = 'none'; el.manualArea.style.display = 'block';
+    stopCamera();
+    el.scanBox.focus();
+  }
+  el.btnCamera.addEventListener('click', useCamera);
+  el.btnManual.addEventListener('click', useManual);
+
+  function startCamera(){
+    if (html5QrCode) return;
+    html5QrCode = new Html5Qrcode("reader");
+    var config = {
+      fps: 10, qrbox: { width: 260, height: 130 },
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.CODE_128
+      ]
+    };
+    html5QrCode.start({ facingMode: "environment" }, config, onCameraScan, function(){})
+      .catch(function(err){
+        setStatus('err', '⚠ Camera error: ' + err + '<br>Try Manual mode, or allow camera access for this page in your browser\'s site settings.');
+      });
+  }
+  function stopCamera(){
+    if (html5QrCode){
+      html5QrCode.stop().then(function(){ html5QrCode.clear(); html5QrCode = null; })
+        .catch(function(){ html5QrCode = null; });
+    }
+  }
+  function onCameraScan(text){
+    var now = Date.now();
+    if (busy) return;
+
+    // Require the barcode to be held steady in front of the camera for HOLD_MS before it
+    // counts as a real scan — a barcode just passing through frame, or a brief bad read,
+    // shouldn't trigger anything.
+    if (text !== holdCode) {
+      holdCode = text;
+      holdStart = now;
+      if (inputMode === 'camera') setStatus('idle', 'Hold steady…');
+      return;
+    }
+    if ((now - holdStart) < HOLD_MS) return;
+
+    if (text === lastCode && (now - lastTime) < 2500) return;
+    lastCode = text; lastTime = now;
+    holdCode = ''; holdStart = 0;
+    // Freeze the camera now that the hold is confirmed, so the same barcode sitting
+    // in frame can't fire a second scan while the status/beep for this one is still showing.
+    if (html5QrCode) { try { html5QrCode.pause(true); } catch(e){} }
+    handleScan(text.trim());
+  }
+
+  function resumeCameraSoon(){
+    setTimeout(function(){
+      holdCode = ''; holdStart = 0;
+      if (html5QrCode && inputMode === 'camera') {
+        try { html5QrCode.resume(); } catch(e){}
+      }
+    }, 1800);
+  }
+  function resumeCameraNow(){
+    holdCode = ''; holdStart = 0;
+    if (html5QrCode && inputMode === 'camera') { try { html5QrCode.resume(); } catch(e){} }
+  }
+
+  el.scanBox.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' || e.key === 'Tab'){
+      e.preventDefault();
+      var v = el.scanBox.value.replace(/[^0-9Xx]/g, '');
+      el.scanBox.value = '';
+      if (v) handleScan(v);
+    }
+  });
+
+  // Scanner support: if a scanner "types" while focus is elsewhere, send it to the ISBN box
+  document.addEventListener('keydown', function(e){
+    if (inputMode !== 'manual') return;
+    if (!el.confirmCard.hidden || !el.overlay.hidden) return; // don't hijack typing in the confirm card or settings
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (document.activeElement !== el.scanBox && e.key.length === 1) el.scanBox.focus();
+  });
+
+  function callApi(action, payload){
+    return fetch(cfg.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ key: cfg.key, action: action, payload: payload })
+    }).then(function(r){ return r.text(); }).then(function(t){ return JSON.parse(t); });
+  }
+
+  function handleScan(isbn){
+    if (!cfg.url || !cfg.key){
+      setStatus('warn', '⚠ Set up the Sheet connection first — tap ⚙ above.');
+      openSettings();
+      resumeCameraSoon();
+      return;
+    }
+    if (busy) return;
+    busy = true;
+
+    // Open the confirm card RIGHT AWAY — don't make the user wait on a network round
+    // trip just to start editing Box/Qty. The lookup runs in the background and fills
+    // in the title (and box, if not already typed) the moment it comes back; by the
+    // time a human reacts and taps Save, it's almost always already done.
+    var dir = mode;
+    var boxTouched = false;
+    pendingScan = { isbn: isbn, found: null, dir: dir, lookupPromise: null, boxTouched: false, reqId: makeReqId() };
+
+    el.confIsbn.value = isbn;
+    el.confTitle.value = '';
+    el.confTitle.readOnly = true;
+    el.confTitleLabel.textContent = 'Title';
+    el.confTitle.placeholder = 'Looking up…';
+    el.confNewProductWrap.style.display = 'none'; // shown only once we know it's a new ISBN
+    el.confPublisher.value = '';
+    el.confBinding.value = 'Paperback';
+    el.confMinStock.value = 0;
+    el.confBox.value = dir === 'in' ? lastBoxIn : lastBoxOut;
+    // reset the box dropdown; it only appears for Outward scans when the ISBN is in several boxes
+    el.confBox.hidden = false;
+    el.confBoxSelect.hidden = true;
+    el.confBoxSelect.innerHTML = '';
+    el.confBoxHint.hidden = true;
+    el.confQty.value = 1;
+    el.confFulfillmentWrap.style.display = dir === 'out' ? 'block' : 'none';
+    // confFulfillment keeps whatever was picked last time (defaults to FBA on first load)
+
+    var seenMap = dir === 'in' ? seenIn : seenOut;
+    el.confNote.innerHTML = seenMap[isbn]
+      ? ('⚠ Already scanned ' + seenMap[isbn] + ' time(s) this session as ' + (dir === 'in' ? 'Inward' : 'Outward') + '.')
+      : '';
+    el.confNote.style.color = 'var(--warn)';
+
+    el.confirmCard.hidden = false;
+    setStatus('idle', 'Review the details below, then Save.');
+
+    var lookupPromise = callApi('lookup', { isbn: isbn }).then(function(res){
+      if (!pendingScan || pendingScan.isbn !== isbn) return res; // a newer scan replaced this one
+      applyLookupResult(isbn, res);
+      return res;
+    }).catch(function(err){
+      if (pendingScan && pendingScan.isbn === isbn){
+        pendingScan.found = false;
+        el.confTitle.readOnly = false;
+        el.confTitleLabel.textContent = 'Title *';
+        el.confTitle.placeholder = 'Could not check Products — enter title to add it';
+        el.confNewProductWrap.style.display = 'block';
+      }
+      throw err;
+    });
+    pendingScan.lookupPromise = lookupPromise;
+  }
+
+  function applyLookupResult(isbn, lookupRes){
+    if (lookupRes && lookupRes.ok === false){
+      // A real server-side error (e.g. a sheet name mismatch) — don't mistake it for "not found".
+      pendingScan.found = false;
+      el.confTitle.readOnly = false;
+      el.confTitleLabel.textContent = 'Title *';
+      el.confTitle.placeholder = 'Lookup failed — enter title to add it';
+      el.confNote.innerHTML = '⚠ Lookup failed: ' + (lookupRes.error || 'unknown error') + '<br>' + el.confNote.innerHTML;
+      el.confNewProductWrap.style.display = 'block';
+      return;
+    }
+    pendingScan.found = !!(lookupRes && lookupRes.found);
+    el.confTitle.value = pendingScan.found ? lookupRes.title : '';
+    el.confTitle.readOnly = pendingScan.found;
+    el.confTitleLabel.textContent = pendingScan.found ? 'Title' : 'Title *';
+    el.confTitle.placeholder = pendingScan.found ? '' : 'New ISBN — enter title to add it';
+    el.confNewProductWrap.style.display = pendingScan.found ? 'none' : 'block';
+    if (!pendingScan.found) el.confTitle.focus();
+
+    if (pendingScan.found && lookupRes.box && !pendingScan.boxTouched){
+      el.confBox.value = lookupRes.box;
+    }
+
+    // Outward + same ISBN in several boxes: swap the text field for a dropdown
+    if (pendingScan.found && pendingScan.dir === 'out' &&
+        lookupRes.boxes && lookupRes.boxes.length > 1){
+      el.confBoxSelect.innerHTML = '';
+      lookupRes.boxes.forEach(function(b){
+        var opt = document.createElement('option');
+        opt.value = b.box;
+        opt.textContent = b.box + '  (' + b.stock + ' in stock)';
+        el.confBoxSelect.appendChild(opt);
+      });
+      // preselect the box used last time if it's one of the options
+      var vals = lookupRes.boxes.map(function(b){ return String(b.box); });
+      if (lastBoxOut && vals.indexOf(lastBoxOut) !== -1) el.confBoxSelect.value = lastBoxOut;
+      el.confBox.hidden = true;
+      el.confBoxSelect.hidden = false;
+      el.confBoxHint.hidden = false;
+    }
+
+    if (!pendingScan.found){
+      var extra = '⚠ Not in Products sheet yet — fill in the details below to add it.';
+      el.confNote.innerHTML = el.confNote.innerHTML ? (extra + '<br>' + el.confNote.innerHTML) : extra;
+    }
+  }
+
+  el.confBox.addEventListener('input', function(){
+    if (pendingScan) pendingScan.boxTouched = true;
+  });
+
+  el.confQtyMinus.addEventListener('click', function(){
+    el.confQty.value = Math.max(1, (parseInt(el.confQty.value,10)||1) - 1);
+  });
+  el.confQtyPlus.addEventListener('click', function(){
+    el.confQty.value = (parseInt(el.confQty.value,10)||1) + 1;
+  });
+
+  el.confCancel.addEventListener('click', function(){
+    el.confirmCard.hidden = true;
+    pendingScan = null;
+    busy = false;
+    setStatus('idle', 'Cancelled — nothing was logged.');
+    if (inputMode === 'manual') el.scanBox.focus();
+    resumeCameraNow();
+  });
+
+  // Generates a random-enough id to tag one Save attempt. Sent to the server so that if the
+  // network drops after the Sheet row was actually written but before the phone sees the
+  // response, a retry with the SAME id gets back the same result instead of writing a second row.
+  function makeReqId(){
+    return Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+  }
+
+  el.confSave.addEventListener('click', function(){
+    var p = pendingScan;
+    if (!p) return;
+    unlockAudio(); // this click is a real user gesture — make sure audio is unlocked from it directly
+    var reqId = p.reqId; // stable across auto-retries AND a manual re-click after a failed attempt
+
+    function attempt(title, qty, box, retriesLeft){
+      function doLog(){
+        if (p.dir === 'in'){
+          return callApi('inward', {
+            isbn: p.isbn, qty: qty,
+            source: document.getElementById('source').value,
+            invoice: document.getElementById('invoice').value,
+            box: box, reqId: reqId
+          });
+        }
+        return callApi('outward', {
+          isbn: p.isbn, qty: qty, box: box,
+          fulfillment: el.confFulfillment.value, reqId: reqId
+        });
+      }
+
+      var chain = p.found
+        ? doLog()
+        : callApi('addProduct', {
+            isbn: p.isbn, title: title, box: box,
+            publisher: el.confPublisher.value.trim(),
+            binding: el.confBinding.value,
+            minStock: parseInt(el.confMinStock.value, 10) || 0
+          }).then(doLog);
+
+      return chain.catch(function(err){
+        if (retriesLeft <= 0) throw err;
+        setStatus('idle', 'Network hiccup — retrying …');
+        return new Promise(function(resolve){ setTimeout(resolve, 1200); })
+          .then(function(){ return attempt(title, qty, box, retriesLeft - 1); });
+      });
+    }
+
+    function proceed(){
+      if (!p || pendingScan !== p) return; // cancelled or replaced while we were waiting
+      var title = el.confTitle.value.trim();
+      if (!p.found && !title){
+        el.confTitle.focus();
+        el.confSave.disabled = false;
+        return;
+      }
+      var qty = parseInt(el.confQty.value, 10) || 1;
+      // read the box from whichever field is showing (dropdown when ISBN is in several boxes)
+      var box = el.confBoxSelect.hidden
+        ? el.confBox.value.trim()
+        : el.confBoxSelect.value;
+      if (p.dir === 'in') lastBoxIn = box; else lastBoxOut = box;
+
+      setStatus('idle', 'Saving …');
+
+      attempt(title, qty, box, 2).then(function(res){
+        el.confSave.disabled = false;
+        el.confirmCard.hidden = true;
+        pendingScan = null;
+        onResult(res, p.isbn, qty, p.dir, title);
+      }).catch(function(err){
+        el.confSave.disabled = false;
+        onErr(err);
+      });
+    }
+
+    el.confSave.disabled = true;
+    if (p.found === null && p.lookupPromise){
+      // Still waiting on the background lookup — by now it's usually already resolved;
+      // if not, wait for it (silently) so we know found-vs-new before saving.
+      p.lookupPromise.then(proceed).catch(proceed);
+    } else {
+      proceed();
+    }
+  });
+
+  function onResult(res, isbn, qty, dir, titleFallback){
+    busy = false;
+    if (!res || res.ok === false){
+      beep(300, 400);
+      setStatus('err', '⚠ ' + (res && res.error ? res.error : 'Save failed') + '. Check the Web app URL and API key.');
+      resumeCameraSoon();
+      return;
+    }
+    var seenMap = dir === 'in' ? seenIn : seenOut;
+    seenMap[isbn] = (seenMap[isbn] || 0) + 1;
+    beep(900, 150);
+    var title = res.title || titleFallback || '(unknown title)';
+    setStatus('ok', '✓ ' + (dir === 'in' ? 'Inward' : 'Outward') + ' x' + qty + ' — <b>' + title + '</b><br><span class="mono">' + isbn + '</span>');
+    addLog(dir, isbn, qty, title);
+    if (inputMode === 'manual') el.scanBox.focus();
+    resumeCameraSoon();
+  }
+
+  function onErr(err){
+    busy = false;
+    beep(300, 400);
+    setStatus('err', '⚠ Network error after retrying: ' + err + '. Safe to tap Save again — it will not create a duplicate row.');
+    resumeCameraSoon();
+  }
+
+  loadCfg();
+  if (cfg.url && cfg.key) setStatus('idle', 'Ready.');
+  useCamera();
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  }
+})();
+</script>
+
+</body>
+</html>
