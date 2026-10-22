@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Modish Inventory Scan</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Modish Inventory Scan — Focus Diagnostic v5</title>
 <style>
   :root{
     --bg:#f4f5f7; --surface:#ffffff; --surface-2:#eceef1; --border:#dde0e5;
@@ -121,7 +122,7 @@
 <body>
 <div class="wrap">
   <div class="topbar">
-    <h1>Scan Station</h1>
+    <h1>Scan Station <span style="font:500 10px IBM Plex Sans,sans-serif;color:var(--muted);vertical-align:middle">v5-focus</span></h1>
     <button class="gear" id="gearBtn" title="Settings">⚙</button>
   </div>
 
@@ -132,9 +133,9 @@
 
   <div class="card" id="inFields">
     <label>Source / Supplier</label>
-    <input type="text" id="source" placeholder="e.g. Ingram, local distributor">
+    <input type="text" id="source" autocomplete="off" placeholder="e.g. Ingram, local distributor">
     <label>Invoice No.</label>
-    <input type="text" id="invoice" placeholder="Invoice / bill number">
+    <input type="text" id="invoice" autocomplete="off" placeholder="Invoice / bill number">
   </div>
 
   <div class="card">
@@ -149,7 +150,7 @@
     </div>
     <div id="manualArea" style="display:none">
       <label style="margin-top:14px">ISBN</label>
-      <input type="text" id="scanBox" autocomplete="off" placeholder="Type ISBN, then press Enter">
+      <input type="text" id="scanBox" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Type ISBN, then press Enter">
     </div>
 
     <div class="status idle mono" id="status">Set up the Sheet connection first (⚙ above).</div>
@@ -368,8 +369,8 @@
     el.btnManual.classList.add('on'); el.btnCamera.classList.remove('on');
     el.cameraArea.style.display = 'none'; el.manualArea.style.display = 'block';
     stopCamera();
-    // Manual ISBN must be selected by the user; never automatically focus it.
-    if (document.activeElement === el.scanBox) el.scanBox.blur();
+    // No programmatic focus or keyboard redirection in Manual mode.
+    // Moving between fields is controlled only by the user.
   }
   el.btnCamera.addEventListener('click', useCamera);
   el.btnManual.addEventListener('click', useManual);
@@ -440,6 +441,25 @@
       if (v) handleScan(v);
     }
   });
+
+  // Focus diagnostic: visibly show which field actually owns keyboard input.
+  // This does not focus, blur, or redirect any input.
+  var activeField = document.createElement('div');
+  activeField.id = 'activeFieldIndicator';
+  activeField.className = 'hint';
+  activeField.style.marginTop = '8px';
+  activeField.textContent = 'Keyboard target: none';
+  el.manualArea.appendChild(activeField);
+  function reportFocus(){
+    var current = document.activeElement;
+    var labels = {source:'Source / Supplier', invoice:'Invoice No.', scanBox:'ISBN'};
+    activeField.textContent = 'Keyboard target: ' + (labels[current && current.id] || 'other field / none');
+  }
+  ['source', 'invoice', 'scanBox'].forEach(function(id){
+    document.getElementById(id).addEventListener('focus', reportFocus);
+    document.getElementById(id).addEventListener('blur', function(){setTimeout(reportFocus, 0);});
+  });
+  el.btnManual.addEventListener('click', reportFocus);
 
   // No document-wide keyboard interception: supplier/invoice inputs must
   // retain ordinary typing and focus. USB/Bluetooth scanners should be used
