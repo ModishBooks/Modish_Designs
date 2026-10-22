@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Scan Station - Modish Books</title>
+<title>Modish Inventory Scan</title>
 <style>
   :root{
     --bg:#f4f5f7; --surface:#ffffff; --surface-2:#eceef1; --border:#dde0e5;
@@ -114,14 +114,14 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Scan Station - Modish Books">
+<meta name="apple-mobile-web-app-title" content="Scan Station">
 
 
 </head>
 <body>
 <div class="wrap">
   <div class="topbar">
-    <h1>Scan Station - Modish Books</h1>
+    <h1>Scan Station</h1>
     <button class="gear" id="gearBtn" title="Settings">⚙</button>
   </div>
 
@@ -149,7 +149,7 @@
     </div>
     <div id="manualArea" style="display:none">
       <label style="margin-top:14px">ISBN</label>
-      <input type="text" id="scanBox" placeholder="Type ISBN, then press Enter">
+      <input type="text" id="scanBox" autocomplete="off" placeholder="Type ISBN, then press Enter">
     </div>
 
     <div class="status idle mono" id="status">Set up the Sheet connection first (⚙ above).</div>
@@ -206,7 +206,7 @@
 <div class="overlay" id="settingsOverlay" hidden>
   <div class="sheet">
     <h2>Connect to your Google Sheet</h2>
-    <p>From Apps Script: Deploy → Manage deployments → copy the Web app URL. Use the same API key you set in Code.gs.</p>
+    <p>Deploy the updated Code.gs as a Web app, then enter its /exec URL and the key set in Script Properties. This GitHub Pages version uses a cross-origin JSONP connection.</p>
     <label>Web app URL</label>
     <input type="text" id="cfgUrl" placeholder="https://script.google.com/macros/s/.../exec">
     <label>API key</label>
@@ -343,7 +343,7 @@
     row.className = 'logrow';
     row.innerHTML =
       '<span class="pill ' + dir + '">' + (dir === 'in' ? 'IN' : 'OUT') + ' x' + qty + '</span>' +
-      '<span class="title">' + title + '</span>' +
+      '<span class="title">' + escapeHtml(title) + '</span>' +
       '<span class="mono" style="color:var(--muted)">' + isbn.slice(-6) + '</span>';
     el.log.insertBefore(row, el.log.firstChild);
   }
@@ -353,7 +353,6 @@
     el.tabIn.classList.toggle('active', m === 'in');
     el.tabOut.classList.toggle('active', m === 'out');
     el.inFields.style.display = m === 'in' ? 'block' : 'none';
-    if (inputMode === 'manual') el.scanBox.focus();
   }
   el.tabIn.addEventListener('click', function(){ setTab('in'); });
   el.tabOut.addEventListener('click', function(){ setTab('out'); });
@@ -369,7 +368,8 @@
     el.btnManual.classList.add('on'); el.btnCamera.classList.remove('on');
     el.cameraArea.style.display = 'none'; el.manualArea.style.display = 'block';
     stopCamera();
-    el.scanBox.focus();
+    // Manual ISBN must be selected by the user; never automatically focus it.
+    if (document.activeElement === el.scanBox) el.scanBox.blur();
   }
   el.btnCamera.addEventListener('click', useCamera);
   el.btnManual.addEventListener('click', useManual);
@@ -441,23 +441,56 @@
     }
   });
 
-  // Scanner support: if a scanner "types" while focus is elsewhere, send it to the ISBN box
-  document.addEventListener('keydown', function(e){
-    if (inputMode !== 'manual') return;
-    if (!el.confirmCard.hidden || !el.overlay.hidden) return; // don't hijack typing in the confirm card or settings
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (document.activeElement !== el.scanBox && e.key.length === 1) el.scanBox.focus();
-  });
+  // No document-wide keyboard interception: supplier/invoice inputs must
+  // retain ordinary typing and focus. USB/Bluetooth scanners should be used
+  // with the ISBN field selected while Manual mode is active.
 
+  // Apps Script ContentService cannot reliably be read by cross-origin fetch
+  // on GitHub Pages. JSONP script loading is used instead.
+  function normalizeISBN(value){
+    return String(value == null ? '' : value).replace(/[\s\u200B-\u200D\uFEFF-]/g, '').toUpperCase();
+  }
+  function escapeHtml(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  var apiCounter = 0;
   function callApi(action, payload){
-    return fetch(cfg.url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ key: cfg.key, action: action, payload: payload })
-    }).then(function(r){ return r.text(); }).then(function(t){ return JSON.parse(t); });
+    return new Promise(function(resolve,reject){
+      if (!cfg.url || !cfg.key) return reject(new Error('Configure Web app URL and key'));
+      var callback = '__modish_cb_' + (++apiCounter) + '_' + Date.now();
+      var script = document.createElement('script');
+      var finished = false;
+      var timer;
+      function finish(err,data){
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        delete window[callback];
+        if(script.parentNode) script.parentNode.removeChild(script);
+        if (err) reject(err); else resolve(data);
+      }
+      window[callback] = function(data){finish(null,data);};
+      var base = cfg.url.trim().split('?')[0];
+      if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(base)) {
+        return finish(new Error('Enter the Google Apps Script /exec deployment URL'));
+      }
+      var qs = 'callback=' + encodeURIComponent(callback) +
+        '&key=' + encodeURIComponent(cfg.key) +
+        '&action=' + encodeURIComponent(action) +
+        '&payload=' + encodeURIComponent(JSON.stringify(payload || {})) +
+        '&nonce=' + Date.now();
+      script.src = base + '?' + qs;
+      script.onerror = function(){finish(new Error('Cannot reach Apps Script. Check deployment and permissions.'));};
+      timer = setTimeout(function(){finish(new Error('Request timed out; check connection or deployment'));},30000);
+      document.head.appendChild(script);
+    });
   }
 
   function handleScan(isbn){
+    isbn = normalizeISBN(isbn);
+    if (!isbn) return;
     if (!cfg.url || !cfg.key){
       setStatus('warn', '⚠ Set up the Sheet connection first — tap ⚙ above.');
       openSettings();
@@ -472,7 +505,6 @@
     // in the title (and box, if not already typed) the moment it comes back; by the
     // time a human reacts and taps Save, it's almost always already done.
     var dir = mode;
-    var boxTouched = false;
     pendingScan = { isbn: isbn, found: null, dir: dir, lookupPromise: null, boxTouched: false, reqId: makeReqId() };
 
     el.confIsbn.value = isbn;
@@ -503,32 +535,33 @@
     el.confirmCard.hidden = false;
     setStatus('idle', 'Review the details below, then Save.');
 
+    var scanRef = pendingScan;
     var lookupPromise = callApi('lookup', { isbn: isbn }).then(function(res){
-      if (!pendingScan || pendingScan.isbn !== isbn) return res; // a newer scan replaced this one
+      if (pendingScan !== scanRef) return res; // scan cancelled or replaced
       applyLookupResult(isbn, res);
       return res;
     }).catch(function(err){
-      if (pendingScan && pendingScan.isbn === isbn){
-        pendingScan.found = false;
-        el.confTitle.readOnly = false;
-        el.confTitleLabel.textContent = 'Title *';
-        el.confTitle.placeholder = 'Could not check Products — enter title to add it';
-        el.confNewProductWrap.style.display = 'block';
+      if (pendingScan === scanRef){
+        pendingScan.lookupError = String(err);
+        pendingScan.found = null;
+        el.confSave.disabled = true;
+        el.confTitle.readOnly = true;
+        el.confTitle.placeholder = 'Lookup unavailable';
+        setStatus('err', 'Lookup failed: ' + escapeHtml(err.message || err) + '. Check API settings and refresh.');
       }
       throw err;
     });
+    // Avoid unhandled rejection if the user hasn't clicked Save.
+    lookupPromise.catch(function(){});
     pendingScan.lookupPromise = lookupPromise;
   }
 
   function applyLookupResult(isbn, lookupRes){
-    if (lookupRes && lookupRes.ok === false){
-      // A real server-side error (e.g. a sheet name mismatch) — don't mistake it for "not found".
-      pendingScan.found = false;
-      el.confTitle.readOnly = false;
-      el.confTitleLabel.textContent = 'Title *';
-      el.confTitle.placeholder = 'Lookup failed — enter title to add it';
-      el.confNote.innerHTML = '⚠ Lookup failed: ' + (lookupRes.error || 'unknown error') + '<br>' + el.confNote.innerHTML;
-      el.confNewProductWrap.style.display = 'block';
+    if (!lookupRes || lookupRes.ok === false){
+      pendingScan.lookupError = (lookupRes && lookupRes.error) || 'Unknown API error';
+      pendingScan.found = null;
+      el.confSave.disabled = true;
+      setStatus('err', 'Lookup failed: ' + escapeHtml(pendingScan.lookupError));
       return;
     }
     pendingScan.found = !!(lookupRes && lookupRes.found);
@@ -583,7 +616,6 @@
     pendingScan = null;
     busy = false;
     setStatus('idle', 'Cancelled — nothing was logged.');
-    if (inputMode === 'manual') el.scanBox.focus();
     resumeCameraNow();
   });
 
@@ -623,7 +655,10 @@
             publisher: el.confPublisher.value.trim(),
             binding: el.confBinding.value,
             minStock: parseInt(el.confMinStock.value, 10) || 0
-          }).then(doLog);
+          }).then(function(added){
+            if (!added || added.ok !== true) throw new Error(added && added.error || 'Unable to add product');
+            return doLog();
+          });
 
       return chain.catch(function(err){
         if (retriesLeft <= 0) throw err;
@@ -636,6 +671,11 @@
     function proceed(){
       if (!p || pendingScan !== p) return; // cancelled or replaced while we were waiting
       var title = el.confTitle.value.trim();
+      if (p.lookupError || p.found === null){
+        el.confSave.disabled = true;
+        setStatus('err', 'Cannot save: product lookup did not succeed. Refresh and retry.');
+        return;
+      }
       if (!p.found && !title){
         el.confTitle.focus();
         el.confSave.disabled = false;
@@ -651,6 +691,7 @@
       setStatus('idle', 'Saving …');
 
       attempt(title, qty, box, 2).then(function(res){
+        if (!res || res.ok !== true) throw new Error(res && res.error || 'Save rejected');
         el.confSave.disabled = false;
         el.confirmCard.hidden = true;
         pendingScan = null;
@@ -662,10 +703,10 @@
     }
 
     el.confSave.disabled = true;
-    if (p.found === null && p.lookupPromise){
+    if (p.found === null && p.lookupPromise && !p.lookupError){
       // Still waiting on the background lookup — by now it's usually already resolved;
       // if not, wait for it (silently) so we know found-vs-new before saving.
-      p.lookupPromise.then(proceed).catch(proceed);
+      p.lookupPromise.then(proceed).catch(function(){el.confSave.disabled = true;});
     } else {
       proceed();
     }
@@ -683,16 +724,15 @@
     seenMap[isbn] = (seenMap[isbn] || 0) + 1;
     beep(900, 150);
     var title = res.title || titleFallback || '(unknown title)';
-    setStatus('ok', '✓ ' + (dir === 'in' ? 'Inward' : 'Outward') + ' x' + qty + ' — <b>' + title + '</b><br><span class="mono">' + isbn + '</span>');
+    setStatus('ok', '✓ ' + (dir === 'in' ? 'Inward' : 'Outward') + ' x' + qty + ' — <b>' + escapeHtml(title) + '</b><br><span class="mono">' + escapeHtml(isbn) + '</span>');
     addLog(dir, isbn, qty, title);
-    if (inputMode === 'manual') el.scanBox.focus();
     resumeCameraSoon();
   }
 
   function onErr(err){
     busy = false;
     beep(300, 400);
-    setStatus('err', '⚠ Network error after retrying: ' + err + '. Safe to tap Save again — it will not create a duplicate row.');
+    setStatus('err', '⚠ Save failed: ' + escapeHtml(err.message || err) + '. Retry using Save; the same request ID prevents duplicate log entries.');
     resumeCameraSoon();
   }
 
@@ -700,8 +740,14 @@
   if (cfg.url && cfg.key) setStatus('idle', 'Ready.');
   useCamera();
 
+  // Retire previously installed PWA service worker to avoid stale HTML.
+  // Re-enable registration only after sw.js uses a versioned cache.
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(function(){});
+    navigator.serviceWorker.getRegistrations().then(function(regs){
+      regs.forEach(function(reg){
+        if (reg.scope.indexOf(location.origin) === 0) reg.unregister();
+      });
+    }).catch(function(){});
   }
 })();
 </script>
