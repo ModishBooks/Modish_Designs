@@ -184,6 +184,10 @@
           <option value="OTHER">OTHER (adjustment)</option>
         </select>
       </div>
+      <div id="confPriceWrap" style="display:none">
+        <label>Price per unit (optional)</label>
+        <input type="number" id="confPrice" min="0" step="0.01" inputmode="decimal" placeholder="Leave blank to skip">
+      </div>
       <label>Qty</label>
       <div class="qtyrow">
         <button type="button" id="confQtyMinus">−</button>
@@ -258,6 +262,8 @@
     confBoxHint: document.getElementById('confBoxHint'),
     confFulfillmentWrap: document.getElementById('confFulfillmentWrap'),
     confFulfillment: document.getElementById('confFulfillment'),
+    confPriceWrap: document.getElementById('confPriceWrap'),
+    confPrice: document.getElementById('confPrice'),
     confQty: document.getElementById('confQty'),
     confQtyMinus: document.getElementById('confQtyMinus'),
     confQtyPlus: document.getElementById('confQtyPlus'),
@@ -545,6 +551,8 @@
     el.confQty.value = 1;
     el.confFulfillmentWrap.style.display = dir === 'out' ? 'block' : 'none';
     // confFulfillment keeps whatever was picked last time (defaults to FBA on first load)
+    el.confPrice.value = '';
+    el.confPriceWrap.style.display = dir === 'in' ? 'block' : 'none';
 
     var seenMap = dir === 'in' ? seenIn : seenOut;
     el.confNote.innerHTML = seenMap[isbn]
@@ -659,6 +667,7 @@
             isbn: p.isbn, qty: qty,
             source: document.getElementById('source').value,
             invoice: document.getElementById('invoice').value,
+            price: el.confPrice.value.trim(),
             box: box, reqId: reqId
           });
         }
